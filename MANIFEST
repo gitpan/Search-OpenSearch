@@ -1,0 +1,14 @@
+Changes
+lib/Search/OpenSearch.pm
+lib/Search/OpenSearch/Engine.pm
+lib/Search/OpenSearch/Facets.pm
+lib/Search/OpenSearch/Response.pm
+lib/Search/OpenSearch/Response/JSON.pm
+lib/Search/OpenSearch/Response/XML.pm
+Makefile.PL
+MANIFEST
+README
+t/00-load.t
+t/pod-coverage.t
+t/pod.t
+META.yml                                 Module meta-data (added by MakeMaker)
