@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:               Search-OpenSearch
-version:            0.03
+version:            0.04
 abstract:           provide search results in OpenSearch format
 author:
     - Peter Karman <karman@cpan.org>
