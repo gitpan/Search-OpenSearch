@@ -5,18 +5,24 @@ use Carp;
 use base qw( Search::OpenSearch::Response );
 use JSON;
 
-our $VERSION = '0.04';
+our $VERSION = '0.05';
 
 sub stringify {
     my $self    = shift;
     my $results = $self->fetch_results();
 
-    # TODO more.
     my %resp = (
-        results   => $results,
-        total     => $self->total,
-        offset    => $self->offset,
-        page_size => $self->page_size,
+        results     => $results,
+        total       => $self->total,
+        offset      => $self->offset,
+        page_size   => $self->page_size,
+        search_time => $self->search_time,
+        build_time  => $self->build_time,
+        facets      => $self->facets,
+        query       => $self->query,
+        title       => $self->title,
+        link        => $self->link,
+        author      => $self->author,
     );
 
     # in devel mode use pretty()

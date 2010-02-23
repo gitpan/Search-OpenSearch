@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:               Search-OpenSearch
-version:            0.04
+version:            0.05
 abstract:           provide search results in OpenSearch format
 author:
     - Peter Karman <karman@cpan.org>
@@ -11,6 +11,7 @@ configure_requires:
 build_requires:
     ExtUtils::MakeMaker:  0
 requires:
+    CHI:                 0
     Data::Pageset:       0
     JSON:                0
     Rose::ObjectX::CAF:  0

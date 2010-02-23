@@ -7,8 +7,9 @@ use Data::Dump qw( dump );
 use Search::Tools::XML;
 use URI::Encode qw( uri_encode );
 use POSIX qw( strftime );
+use Data::UUID;
 
-our $VERSION = '0.04';
+our $VERSION = '0.05';
 
 my $XMLer = Search::Tools::XML->new;
 
@@ -19,10 +20,10 @@ my $header = <<EOF;
 EOF
 
 sub stringify {
-    my $self  = shift;
-    my $pager = $self->fetch_pager();
-
-    my @entries = $self->_build_entries;
+    my $self       = shift;
+    my $pager      = $self->fetch_pager();
+    my $UUID_maker = Data::UUID->new;
+    my @entries    = $self->_build_entries;
 
     my $now = strftime '%Y-%m-%dT%H:%M:%SZ', gmtime;
 
@@ -33,6 +34,10 @@ sub stringify {
             'opensearch:totalResults' => $self->total,
             'opensearch:startIndex'   => $self->offset,
             'opensearch:itemsPerPage' => $self->page_size,
+            'id'                      => $UUID_maker->create(),
+            'facets'                  => $self->facets,
+            'search_time'             => $self->search_time,
+            'build_time'              => $self->build_time,
         },
         'feed',
     );
@@ -47,8 +52,6 @@ sub stringify {
             startIndex   => $self->offset,
         }
     );
-
-    # TODO generate uuid? cache per query?
 
     # main link
     my $link = $XMLer->singleton( 'link', { href => $self->link } );
@@ -127,13 +130,18 @@ sub _build_entries {
     my $self    = shift;
     my $results = $self->fetch_results();
     my @entries;
+
+    #my $UUID_maker = Data::UUID->new;
+
     for my $result (@$results) {
         my $entry = $XMLer->perl_to_xml(
             {   title   => $result->{title},
                 content => $result->{summary},
-                id      => $result->{uri},
+                id      => $result->{uri},       # or uuid?
             },
-            'entry', 0, 1
+            'entry',
+            0,
+            1
         );
         my $link = $XMLer->singleton( 'link', { href => $result->{uri} } );
         $entry =~ s,</entry>,$link</entry>,;

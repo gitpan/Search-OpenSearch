@@ -25,10 +25,12 @@ __PACKAGE__->mk_accessors(
         link
         author
         pps
+        search_time
+        build_time
         )
 );
 
-our $VERSION = '0.04';
+our $VERSION = '0.05';
 
 sub init {
     my $self = shift;
@@ -186,6 +188,10 @@ Pages-per-section. Used by Data::Pageset. Default is "10".
 =item title
 
 =item link
+
+=item search_time
+
+=item build_time
 
 =back
 

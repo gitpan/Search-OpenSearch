@@ -7,10 +7,12 @@ use Scalar::Util qw( blessed );
 use Search::OpenSearch::Facets;
 use Search::OpenSearch::Response::XML;
 use Search::OpenSearch::Response::JSON;
+use CHI;
+use Time::HiRes qw( time );
 
-__PACKAGE__->mk_accessors(qw( index facets fields link ));
+__PACKAGE__->mk_accessors(qw( index facets fields link cache cache_ttl ));
 
-our $VERSION = '0.04';
+our $VERSION = '0.05';
 
 use Rose::Object::MakeMethods::Generic (
     'scalar --get_set_init' => 'searcher', );
@@ -22,6 +24,14 @@ sub init {
         $self->facets(
             Search::OpenSearch::Facets->new( %{ $self->facets } ) );
     }
+    $self->{cache} ||= CHI->new(
+        driver           => 'File',
+        dir_create_mode  => 0770,
+        file_create_mode => 0660,
+        root_dir         => "/tmp/opensearch_cache",
+    );
+    $self->{cache_ttl} = 60 * 60 * 1;    # 1 hour
+
     return $self;
 }
 sub init_searcher { croak "$_[0] does not implement init_searcher()" }
@@ -32,7 +42,7 @@ sub search {
     my %args  = @_;
     my $query = $args{'q'};
     if ( !defined $query ) { croak "query required"; }
-
+    my $start_time     = time();
     my $offset         = $args{'o'} || 0;
     my $sort_by        = $args{'s'} || 'score DESC';
     my $page_size      = $args{'p'} || 25;
@@ -67,19 +77,24 @@ sub search {
             limit => \@limits,
         }
     );
+    my $search_time = sprintf( "%0.5f", time() - $start_time );
+    my $start_build = time();
     my $response
         = $count_only
         ? $response_class->new( total => $results->hits )
         : $response_class->new(
-        results   => $results,
-        facets    => $self->facets,
-        fields    => $self->fields,
-        offset    => $offset,
-        page_size => $page_size,
-        total     => $results->hits,
-        query     => $query,
-        link      => $self->link,
+        results     => $results,
+        facets      => $self->get_facets( $query, $results ),
+        fields      => $self->fields,
+        offset      => $offset,
+        page_size   => $page_size,
+        total       => $results->hits,
+        query       => $query,
+        link        => $self->link,
+        search_time => $search_time,
         );
+    my $build_time = sprintf( "%0.5f", time() - $start_build );
+    $response->build_time($build_time);
     return $response;
 }
 
@@ -88,6 +103,28 @@ sub set_limit {
     my %args  = @_;
     my @range = ( $args{field}, $args{lower}, $args{upper} );
     return \@range;
+}
+
+sub get_facets {
+    my $self      = shift;
+    my $query     = shift;
+    my $results   = shift;
+    my $cache_key = ref($self) . $query;
+    my $cache     = $self->cache or return;
+
+    my $facets;
+    if ( $cache->get($cache_key) ) {
+        $facets = $cache->get($cache_key);
+    }
+    else {
+        $facets = $self->build_facets( $query, $results );
+        $cache->set( $cache_key, $facets, $self->cache_ttl );
+    }
+    return $facets;
+}
+
+sub build_facets {
+    croak ref(shift) . " must implement build_facets()";
 }
 
 1;
@@ -180,6 +217,27 @@ Default is to croak().
 =head2 link
 
 The base URI for Responses. Passed to Response->link.
+
+=head2 get_facets( I<query>, I<results> )
+
+Checks the cache for facets related to I<query> and, if found,
+returns them. If not found, calls build_facets(), which must
+be implemented by each Engine subclass.
+
+=head2 build_facets( I<query>, I<results> )
+
+Default will croak. Engine subclasses must implement this method
+to provide Facet support.
+
+=head2 cache
+
+Get/set the internal CHI object. Defaults to the File driver.
+
+=head2 cache_ttl
+
+Get/set the cache key time-to-live. Default is 1 hour.
+
+=cut
 
 =head1 AUTHOR
 
