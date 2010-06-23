@@ -5,11 +5,12 @@ use Carp;
 use base qw( Search::OpenSearch::Response );
 use Data::Dump qw( dump );
 use Search::Tools::XML;
+use Encode;
 use URI::Encode qw( uri_encode );
 use POSIX qw( strftime );
 use Data::UUID;
 
-our $VERSION = '0.06';
+our $VERSION = '0.07';
 
 my $XMLer = Search::Tools::XML->new;
 
@@ -21,7 +22,7 @@ EOF
 
 sub stringify {
     my $self       = shift;
-    my $pager      = $self->fetch_pager();
+    my $pager      = $self->build_pager();
     my $UUID_maker = Data::UUID->new;
     my @entries    = $self->_build_entries;
 
@@ -40,7 +41,7 @@ sub stringify {
             'build_time'              => $self->build_time,
             engine                    => $self->engine,
         },
-        'feed',
+        'feed', 1
     );
     $feed =~ s,</?feed>,,g;    # strip wrapper tags for now
 
@@ -123,13 +124,17 @@ sub stringify {
     # add the tags back
     $feed = $header . $feed . "</feed>";
 
-    return $XMLer->tidy($feed);
+    # make sure we have utf8 bytes. tidy() will return UTF-8 decoded
+    # string, so we just encode it back to bytes.
+    # This specifically fixes behaviour under Plack, which requires
+    # bytes, not characters.
+    return Encode::encode_utf8( $XMLer->tidy($feed) );
 
 }
 
 sub _build_entries {
     my $self    = shift;
-    my $results = $self->fetch_results();
+    my $results = $self->results;
     my @entries;
 
     #my $UUID_maker = Data::UUID->new;
@@ -141,7 +146,7 @@ sub _build_entries {
                 id      => $result->{uri},       # or uuid?
             },
             'entry',
-            0,
+            1,
             1
         );
         my $link = $XMLer->singleton( 'link', { href => $result->{uri} } );
@@ -180,6 +185,7 @@ Search::OpenSearch::Response::XML - provide search results in XML format
     c           => 0,                   # return count stats only (no results)
     L           => 'field|low|high',    # limit results to inclusive range
     f           => 1,                   # include facets
+    r           => 1,                   # include results
     format      => 'XML',               # or JSON
  );
  print $response;

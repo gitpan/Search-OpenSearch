@@ -7,12 +7,26 @@ use Scalar::Util qw( blessed );
 use Search::OpenSearch::Facets;
 use Search::OpenSearch::Response::XML;
 use Search::OpenSearch::Response::JSON;
+use Search::Tools::XML;
+use Search::Tools;
 use CHI;
 use Time::HiRes qw( time );
 
-__PACKAGE__->mk_accessors(qw( index facets fields link cache cache_ttl ));
+__PACKAGE__->mk_accessors(
+    qw(
+        index
+        facets
+        fields
+        link
+        cache
+        cache_ttl
+        do_not_hilite
+        snipper_config
+        hiliter_config
+        )
+);
 
-our $VERSION = '0.06';
+our $VERSION = '0.07';
 
 use Rose::Object::MakeMethods::Generic (
     'scalar --get_set_init' => 'searcher', );
@@ -30,7 +44,10 @@ sub init {
         file_create_mode => 0660,
         root_dir         => "/tmp/opensearch_cache",
     );
-    $self->{cache_ttl} = 60 * 60 * 1;    # 1 hour
+    $self->{cache_ttl}      ||= 60 * 60 * 1;             # 1 hour
+    $self->{do_not_hilite}  ||= {};
+    $self->{snipper_config} ||= { as_sentences => 1 };
+    $self->{hiliter_config} ||= {};
 
     return $self;
 }
@@ -42,14 +59,19 @@ sub search {
     my %args  = @_;
     my $query = $args{'q'};
     if ( !defined $query ) { croak "query required"; }
-    my $start_time     = time();
-    my $offset         = $args{'o'} || 0;
-    my $sort_by        = $args{'s'} || 'score DESC';
-    my $page_size      = $args{'p'} || 25;
-    my $apply_hilite   = $args{'h'} || 1;
-    my $count_only     = $args{'c'} || 0;
-    my $limits         = $args{'L'} || [];
-    my $include_facets = $args{'f'} || 1;
+    my $start_time   = time();
+    my $offset       = $args{'o'} || 0;
+    my $sort_by      = $args{'s'} || 'score DESC';
+    my $page_size    = $args{'p'} || 25;
+    my $apply_hilite = $args{'h'};
+    $apply_hilite = 1 unless defined $apply_hilite;
+    my $count_only = $args{'c'} || 0;
+    my $limits     = $args{'L'} || [];
+    my $boolop     = $args{'b'} || 'AND';
+    my $include_results = $args{'r'};
+    $include_results = 1 unless defined $include_results;
+    my $include_facets = $args{'f'};
+    $include_facets = 1 unless defined $include_facets;
 
     my $format = uc( $args{format} || 'XML' );
     my $response_class = $args{response_class}
@@ -72,9 +94,10 @@ sub search {
     my $searcher = $self->searcher or croak "searcher not defined";
     my $results = $searcher->search(
         $query,
-        {   start => $offset,
-            max   => $page_size,
-            limit => \@limits,
+        {   start          => $offset,
+            max            => $page_size,
+            limit          => \@limits,
+            default_boolop => $boolop,
         }
     );
     my $search_time = sprintf( "%0.5f", time() - $start_time );
@@ -83,17 +106,30 @@ sub search {
         = $count_only
         ? $response_class->new( total => $results->hits )
         : $response_class->new(
-        results     => $results,
-        facets      => $self->get_facets( $query, $results ),
-        fields      => $self->fields,
-        offset      => $offset,
-        page_size   => $page_size,
-        total       => $results->hits,
-        query       => $query,
-        link        => $self->link,
-        search_time => $search_time,
-        engine      => blessed($self),
+        fields       => $self->fields,
+        offset       => $offset,
+        page_size    => $page_size,
+        total        => $results->hits,
+        parsed_query => $results->query->stringify,
+        query        => $query,
+        link         => $self->link,
+        search_time  => $search_time,
+        engine       => blessed($self),
         );
+    if ($include_results) {
+        $response->results(
+            $self->build_results(
+                fields       => $self->fields,
+                results      => $results,
+                page_size    => $page_size,
+                apply_hilite => $apply_hilite,
+                query        => $query
+            )
+        );
+    }
+    if ($include_facets) {
+        $response->facets( $self->get_facets( $query, $results ) );
+    }
     my $build_time = sprintf( "%0.5f", time() - $start_build );
     $response->build_time($build_time);
     return $response;
@@ -128,6 +164,86 @@ sub build_facets {
     croak ref(shift) . " must implement build_facets()";
 }
 
+sub build_results {
+    my $self      = shift;
+    my %args      = @_;
+    my $fields    = $args{fields} || $self->fields || [];
+    my $results   = $args{results} or croak "no results defined";
+    my $page_size = $args{page_size} || 25;
+    my $q         = $args{query} or croak "query required";
+    my @results;
+    my $count          = 0;
+    my %snipper_config = %{ $self->{snipper_config} };
+    my %hiliter_config = %{ $self->{hiliter_config} };
+
+    # TODO how to pass in a stemmer if necessary to the ST->parser?
+    my $XMLer   = Search::Tools::XML->new;
+    my $query   = Search::Tools->parser()->parse($q);
+    my $snipper = Search::Tools->snipper( query => $query, %snipper_config );
+    my $hiliter = Search::Tools->hiliter( query => $query, %hiliter_config );
+    while ( my $result = $results->next ) {
+        push @results,
+            $self->process_result(
+            result       => $result,
+            hiliter      => $hiliter,
+            snipper      => $snipper,
+            XMLer        => $XMLer,
+            fields       => $fields,
+            apply_hilite => $args{apply_hilite},
+            );
+        last if ++$count >= $page_size;
+    }
+    return \@results;
+}
+
+sub process_result {
+    my ( $self, %args ) = @_;
+    my $result       = $args{result};
+    my $hiliter      = $args{hiliter};
+    my $XMLer        = $args{XMLer};
+    my $snipper      = $args{snipper};
+    my $fields       = $args{fields};
+    my $apply_hilite = $args{apply_hilite};
+
+    my $title   = $XMLer->escape( $result->title   || '' );
+    my $summary = $XMLer->escape( $result->summary || '' );
+
+    # \003 is the record-delimiter in Swish3
+    # the default behaviour is just to ignore it
+    # and replace with a single space, but a subclass (like JSON)
+    # might want to split on it to get an array of values
+    $title   =~ s/\003/ /g;
+    $summary =~ s/\003/ /g;
+
+    my %res = (
+        score   => $result->score,
+        uri     => $result->uri,
+        mtime   => $result->mtime,
+        title   => ( $apply_hilite ? $hiliter->light($title) : $title ),
+        summary => (
+              $apply_hilite
+            ? $hiliter->light( $snipper->snip($summary) )
+            : $summary
+        ),
+    );
+    for my $field (@$fields) {
+        my $str = $XMLer->escape( $result->get_property($field) || '' );
+        $str =~ s/\003/ /g;
+        if ( !$apply_hilite or $self->no_hiliting($field) ) {
+            $res{$field} = $str;
+        }
+        else {
+            $res{$field} = $hiliter->light( $snipper->snip($str) );
+        }
+    }
+    return \%res;
+}
+
+sub no_hiliting {
+    my ( $self, $field ) = @_;
+    return $self->{do_not_hilite}->{$field};
+}
+
 1;
 
 __END__
@@ -156,8 +272,10 @@ Search::OpenSearch::Engine - abstract base class
     c           => 0,                   # return count stats only (no results)
     L           => 'field|low|high',    # limit results to inclusive range
     f           => 1,                   # include facets
+    r           => 1,                   # include results
     format      => 'XML',               # or JSON
     link        => 'http://yourdomain.foo/opensearch/',
+    b           => 'AND',               # or OR
  );
  print $response;
 
@@ -230,6 +348,44 @@ be implemented by each Engine subclass.
 Default will croak. Engine subclasses must implement this method
 to provide Facet support.
 
+=head2 build_results( I<results> )
+
+I<results> should be an iterator like SWISH::Prog::Results.
+
+Returns an array ref of hash refs, each corresponding to a single
+search result.
+
+=head2 process_result( I<hash_of_args> )
+
+Called by build_results for each result object. I<hash_of_args> is
+a list of key/value pairs that includes:
+
+=over
+
+=item result
+
+The values returned from results->next.
+
+=item hiliter
+
+A Search::Tools::HiLiter object.
+
+=item snipper
+
+A Search::Tools::Snipper object.
+
+=item XMLer
+
+A Search::Tools::XML object.
+
+=item fields
+
+Array ref of fields defined in the new() constructor.
+
+=back
+
+Returns a hash ref, where each key is a field name.
+
 =head2 cache
 
 Get/set the internal CHI object. Defaults to the File driver.
@@ -237,6 +393,24 @@ Get/set the internal CHI object. Defaults to the File driver.
 =head2 cache_ttl
 
 Get/set the cache key time-to-live. Default is 1 hour.
+
+=head2 do_not_hilite
+
+Get/set the hash ref of field names that should not be hilited
+in a Response.
+
+=head2 snipper_config
+
+Get/set the hash ref of Search::Tools::Snipper->new params.
+
+=head2 hiliter_config
+
+Get/set the hash ref of Search::Tools::HiLiter->new params.
+
+=head2 no_hiliting( I<field_name> )
+
+By default, looks up I<field_name> in the do_no_hilite() hash, but
+you can override this method to implement whatever logic you want.
 
 =cut
 
