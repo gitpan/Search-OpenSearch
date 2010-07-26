@@ -11,6 +11,8 @@ use Search::Tools::XML;
 use Search::Tools;
 use CHI;
 use Time::HiRes qw( time );
+use Data::Dump qw( dump );
+use JSON;
 
 __PACKAGE__->mk_accessors(
     qw(
@@ -24,10 +26,11 @@ __PACKAGE__->mk_accessors(
         snipper_config
         hiliter_config
         parser_config
+        logger
         )
 );
 
-our $VERSION = '0.08';
+our $VERSION = '0.09';
 
 use Rose::Object::MakeMethods::Generic (
     'scalar --get_set_init' => 'searcher', );
@@ -105,21 +108,27 @@ sub search {
     );
     my $search_time = sprintf( "%0.5f", time() - $start_time );
     my $start_build = time();
-    my $response
-        = $count_only
-        ? $response_class->new( total => $results->hits )
-        : $response_class->new(
-        fields       => $self->fields,
-        offset       => $offset,
-        page_size    => $page_size,
+    my $res_query   = $results->query;
+    my $query_tree  = $res_query->tree;
+    $self->logger and $self->logger->log( dump $query_tree );
+    my $response = $response_class->new(
         total        => $results->hits,
-        parsed_query => $results->query->stringify,
+        json_query   => encode_json($query_tree),
+        parsed_query => $res_query->stringify,
         query        => $query,
-        link         => $self->link,
         search_time  => $search_time,
+        link         => $self->link,
         engine       => blessed($self),
+    );
+    $self->logger
+        and $self->logger->log(
+        "include_results=$include_results include_facets=$include_facets count_only=$count_only"
         );
-    if ($include_results) {
+
+    if ( $include_results && !$count_only ) {
+        $response->fields( $self->fields );
+        $response->offset($offset);
+        $response->page_size($page_size);
         $response->results(
             $self->build_results(
                 fields       => $self->fields,
@@ -130,7 +139,7 @@ sub search {
             )
         );
     }
-    if ($include_facets) {
+    if ( $include_facets && !$count_only ) {
         $response->facets( $self->get_facets( $query, $results ) );
     }
     my $build_time = sprintf( "%0.5f", time() - $start_build );
@@ -154,9 +163,12 @@ sub get_facets {
 
     my $facets;
     if ( $cache->get($cache_key) ) {
+        $self->logger
+            and $self->logger->log("get facets for '$cache_key' from cache");
         $facets = $cache->get($cache_key);
     }
     else {
+        $self->logger and $self->logger->log("build facets for '$cache_key'");
         $facets = $self->build_facets( $query, $results );
         $cache->set( $cache_key, $facets, $self->cache_ttl );
     }
@@ -272,7 +284,7 @@ Search::OpenSearch::Engine - abstract base class
     o           => 0,                   # offset
     p           => 25,                  # page size
     h           => 1,                   # highlight query terms in results
-    c           => 0,                   # return count stats only (no results)
+    c           => 0,                   # count total only (same as f=0 r=0)
     L           => 'field|low|high',    # limit results to inclusive range
     f           => 1,                   # include facets
     r           => 1,                   # include results
@@ -419,7 +431,10 @@ Get/set the hash ref of Search::Tools::QueryParser->new params.
 By default, looks up I<field_name> in the do_no_hilite() hash, but
 you can override this method to implement whatever logic you want.
 
-=cut
+=head2 logger( I<logger_object> )
+
+Get/set an optional logging object, which must implement a method
+called B<log> and expect a single string.
 
 =head1 AUTHOR
 
