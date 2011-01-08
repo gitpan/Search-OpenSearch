@@ -27,10 +27,11 @@ __PACKAGE__->mk_accessors(
         hiliter_config
         parser_config
         logger
+        debug
         )
 );
 
-our $VERSION = '0.10';
+our $VERSION = '0.11';
 
 use Rose::Object::MakeMethods::Generic (
     'scalar --get_set_init' => 'searcher', );
@@ -58,6 +59,7 @@ sub init {
 }
 sub init_searcher { croak "$_[0] does not implement init_searcher()" }
 sub type          { croak "$_[0] does not implement type()" }
+sub has_rest_api  {0}
 
 sub search {
     my $self  = shift;
@@ -437,6 +439,19 @@ you can override this method to implement whatever logic you want.
 
 Get/set an optional logging object, which must implement a method
 called B<log> and expect a single string.
+
+=head2 has_rest_api( 0|1 )
+
+Override this method in a subclass in order to indicate support
+for more than just searching an index. Examples include
+support for DELETE, PUT, POST and GET HTTP methods on particular
+documents in the index.
+
+Default is false.
+
+=head2 debug([boolean])
+
+Get/set the debug flag for messaging on stderr.
 
 =head1 AUTHOR
 
