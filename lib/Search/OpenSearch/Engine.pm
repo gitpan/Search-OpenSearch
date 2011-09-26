@@ -31,10 +31,12 @@ __PACKAGE__->mk_accessors(
         )
 );
 
-our $VERSION = '0.13';
+our $VERSION = '0.14';
 
 use Rose::Object::MakeMethods::Generic (
-    'scalar --get_set_init' => 'searcher', );
+    'scalar --get_set_init' => 'searcher',
+    'scalar --get_set_init' => 'default_response_format',
+);
 
 sub init {
     my $self = shift;
@@ -49,10 +51,10 @@ sub init {
         file_create_mode => 0660,
         root_dir         => "/tmp/opensearch_cache",
     );
-    $self->{cache_ttl}      ||= 60 * 60 * 1;             # 1 hour
+    $self->{cache_ttl}      ||= 60 * 60 * 1;                    # 1 hour
     $self->{do_not_hilite}  ||= {};
     $self->{snipper_config} ||= { as_sentences => 1 };
-    $self->{hiliter_config} ||= {};
+    $self->{hiliter_config} ||= { class => 'h', tag => 'b' };
     $self->{parser_config}  ||= {};
 
     return $self;
@@ -60,6 +62,7 @@ sub init {
 sub init_searcher { croak "$_[0] does not implement init_searcher()" }
 sub type          { croak "$_[0] does not implement type()" }
 sub has_rest_api  {0}
+sub init_default_response_format {'XML'}
 
 sub search {
     my $self  = shift;
@@ -80,7 +83,7 @@ sub search {
     my $include_facets = $args{'f'};
     $include_facets = 1 unless defined $include_facets;
 
-    my $format = uc( $args{format} || 'XML' );
+    my $format = uc( $args{format} || $self->default_response_format );
     my $response_class = $args{response_class}
         || 'Search::OpenSearch::Response::' . $format;
 
@@ -458,6 +461,10 @@ Default is false.
 =head2 debug([boolean])
 
 Get/set the debug flag for messaging on stderr.
+
+=head2 init_default_response_format
+
+Returns default response format. Defaults to 'XML'.
 
 =head1 AUTHOR
 
