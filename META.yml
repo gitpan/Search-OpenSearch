@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:               Search-OpenSearch
-version:            0.14
+version:            0.15
 abstract:           provide search results in OpenSearch format
 author:
     - Peter Karman <karman@cpan.org>
@@ -22,9 +22,9 @@ requires:
     URI::Encode:         0
 resources:
     bugtracker:  http://rt.cpan.org/NoAuth/Bugs.html?Dist=Search-OpenSearch
-    homepage:    http://perl.peknet.com/
+    homepage:    https://github.com/karpet/search-opensearch-perl
     license:     http://dev.perl.org/licenses/
-    repository:  http://svn.peknet.com/perl/Search-OpenSearch/
+    repository:  git://github.com/karpet/search-opensearch-perl.git
 no_index:
     directory:
         - t

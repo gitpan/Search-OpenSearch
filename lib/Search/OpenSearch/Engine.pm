@@ -26,12 +26,14 @@ __PACKAGE__->mk_accessors(
         snipper_config
         hiliter_config
         parser_config
+        indexer_config
+        searcher_config
         logger
         debug
         )
 );
 
-our $VERSION = '0.14';
+our $VERSION = '0.15';
 
 use Rose::Object::MakeMethods::Generic (
     'scalar --get_set_init' => 'searcher',
@@ -51,11 +53,13 @@ sub init {
         file_create_mode => 0660,
         root_dir         => "/tmp/opensearch_cache",
     );
-    $self->{cache_ttl}      ||= 60 * 60 * 1;                    # 1 hour
-    $self->{do_not_hilite}  ||= {};
-    $self->{snipper_config} ||= { as_sentences => 1 };
-    $self->{hiliter_config} ||= { class => 'h', tag => 'b' };
-    $self->{parser_config}  ||= {};
+    $self->{cache_ttl}       ||= 60 * 60 * 1;                    # 1 hour
+    $self->{do_not_hilite}   ||= {};
+    $self->{snipper_config}  ||= { as_sentences => 1 };
+    $self->{hiliter_config}  ||= { class => 'h', tag => 'b' };
+    $self->{parser_config}   ||= {};
+    $self->{indexer_config}  ||= {};
+    $self->{searcher_config} ||= {};
 
     return $self;
 }
@@ -83,7 +87,10 @@ sub search {
     my $include_facets = $args{'f'};
     $include_facets = 1 unless defined $include_facets;
 
-    my $format = uc( $args{format} || $self->default_response_format );
+    my $format
+        = uc(  $args{'t'}
+            || $args{'format'}
+            || $self->default_response_format );
     my $response_class = $args{response_class}
         || 'Search::OpenSearch::Response::' . $format;
 
@@ -124,7 +131,7 @@ sub search {
         parsed_query => $res_query->stringify,
         query        => $query,
         search_time  => $search_time,
-        link         => $self->link,
+        link         => ( $args{'u'} || $args{'link'} || $self->link ),
         engine       => blessed($self),
     );
     if ( $self->debug and $self->logger ) {
@@ -284,12 +291,30 @@ Search::OpenSearch::Engine - abstract base class
 
  use Search::OpenSearch::Engine;
  my $engine = Search::OpenSearch::Engine->new(
-    index   => [qw( path/to/index1 path/to/index2 )],
-    facets  => {
+    index       => [qw( path/to/index1 path/to/index2 )],
+    facets      => {
         names       => [qw( color size flavor )],
         sample_size => 10_000,
     },
-    fields  => [qw( color size flavor )],
+    fields      => [qw( color size flavor )],   # result attributes in response
+    indexer_config  => {
+        somekey => somevalue,
+    },
+    searcher_config => {
+        anotherkey => anothervalue,
+    },
+    cache           => CHI->new(
+        driver           => 'File',
+        dir_create_mode  => 0770,
+        file_create_mode => 0660,
+        root_dir         => "/tmp/opensearch_cache",
+    ),
+    cache_ttl       => 3600,
+    do_not_hilite   => [qw( color )],
+    snipper_config  => { as_sentences => 1 },        # see Search::Tools::Snipper
+    hiliter_config  => { class => 'h', tag => 'b' }, # see Search::Tools::HiLiter
+    parser_config   => {},                           # see Search::Query::Parser
+    
  );
  my $response = $engine->search(
     q           => 'quick brown fox',   # query
@@ -301,8 +326,8 @@ Search::OpenSearch::Engine - abstract base class
     L           => 'field|low|high',    # limit results to inclusive range
     f           => 1,                   # include facets
     r           => 1,                   # include results
-    format      => 'XML',               # or JSON
-    link        => 'http://yourdomain.foo/opensearch/',
+    t           => 'XML',               # or JSON
+    u           => 'http://yourdomain.foo/opensearch/',
     b           => 'AND',               # or OR
  );
  print $response;
@@ -417,27 +442,43 @@ Returns a hash ref, where each key is a field name.
 =head2 cache
 
 Get/set the internal CHI object. Defaults to the File driver.
+Typically passed as param in new().
 
 =head2 cache_ttl
 
 Get/set the cache key time-to-live. Default is 1 hour.
+Typically passed as param in new().
 
 =head2 do_not_hilite
 
 Get/set the hash ref of field names that should not be hilited
 in a Response.
+Typically passed as param in new().
 
 =head2 snipper_config
 
 Get/set the hash ref of Search::Tools::Snipper->new params.
+Typically passed as param in new().
 
 =head2 hiliter_config
 
 Get/set the hash ref of Search::Tools::HiLiter->new params.
+Typically passed as param in new().
 
 =head2 parser_config
 
 Get/set the hash ref of Search::Tools::QueryParser->new params.
+Typically passed as param in new().
+
+=head2 indexer_config
+
+Get/set the hash ref available to subclasses that implement
+a REST API. Typically passed as param in new().
+
+=head2 searcher_config
+
+Get/set the hash ref available to subclasses in init_searcher().
+Typically passed as param in new().
 
 =head2 no_hiliting( I<field_name> )
 
