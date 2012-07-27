@@ -25,18 +25,31 @@ my @attributes = qw(
     author
     search_time
     build_time
+    sort_info
 );
 __PACKAGE__->mk_accessors( @attributes, qw( debug pps ) );
 
-our $VERSION = '0.15';
+our $VERSION = '0.16';
+
+our %ATTRIBUTES = ();
+
+sub default_fields {
+    return [qw( uri title summary mtime score )];
+}
 
 sub init {
     my $self = shift;
+
+    my $class = ref $self;
+    map { $ATTRIBUTES{$class}->{$_} = $_ } @attributes;
+
     $self->SUPER::init(@_);
-    $self->{title}  ||= 'OpenSearch Results';
-    $self->{author} ||= ref($self);
-    $self->{link}   ||= '';
-    $self->{pps}    ||= 10;
+    $self->{title}     ||= 'OpenSearch Results';
+    $self->{author}    ||= ref($self);
+    $self->{link}      ||= '';
+    $self->{pps}       ||= 10;
+    $self->{offset}    ||= 0;
+    $self->{page_size} ||= 10;
     return $self;
 }
 
@@ -44,7 +57,7 @@ sub stringify { croak "$_[0] does not implement stringify()" }
 
 sub as_hash {
     my $self = shift;
-    my %hash = map { $_ => $self->$_ } @attributes;
+    my %hash = map { $_ => $self->$_ } keys %{ $ATTRIBUTES{ ref $self } };
     return \%hash;
 }
 
@@ -66,12 +79,12 @@ sub build_pager {
 
 sub add_attribute {
     my $self = shift;
+    my $class = ref $self ? ref $self : $self;
     for my $attr (@_) {
         $self->mk_accessors($attr);
-        push @attributes, $attr;
+        $ATTRIBUTES{$class}->{$attr} = $attr;
     }
 }
-
 
 1;
 
@@ -169,6 +182,8 @@ Pages-per-section. Used by Data::Pageset. Default is "10".
 
 =item engine
 
+=item sort_info
+
 =back
 
 =head2 build_pager
@@ -190,6 +205,11 @@ Response objects are overloaded to call stringify().
 Adds get/set method I<attribute_name> to the class and will include
 that attribute in as_hash(). This method is intended to make it easier
 to extend the basic structure without needing to subclass.
+
+=head2 default_fields 
+
+Returns array ref of default result field names. These are implemented
+by the default Engine class.
 
 =head1 AUTHOR
 

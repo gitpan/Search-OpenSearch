@@ -3,6 +3,7 @@ lib/Search/OpenSearch.pm
 lib/Search/OpenSearch/Engine.pm
 lib/Search/OpenSearch/Facets.pm
 lib/Search/OpenSearch/Response.pm
+lib/Search/OpenSearch/Response/ExtJS.pm
 lib/Search/OpenSearch/Response/JSON.pm
 lib/Search/OpenSearch/Response/XML.pm
 Makefile.PL
@@ -10,6 +11,9 @@ MANIFEST
 README
 t/00-load.t
 t/01-client.t
+t/02-response.t
+t/03-mem-leak.t
 t/pod-coverage.t
 t/pod.t
-META.yml                                 Module meta-data (added by MakeMaker)
+META.yml                                 Module YAML meta-data (added by MakeMaker)
+META.json                                Module JSON meta-data (added by MakeMaker)

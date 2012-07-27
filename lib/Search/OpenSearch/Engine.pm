@@ -7,6 +7,7 @@ use Scalar::Util qw( blessed );
 use Search::OpenSearch::Facets;
 use Search::OpenSearch::Response::XML;
 use Search::OpenSearch::Response::JSON;
+use Search::OpenSearch::Response::ExtJS;
 use Search::Tools::XML;
 use Search::Tools;
 use CHI;
@@ -22,6 +23,7 @@ __PACKAGE__->mk_accessors(
         link
         cache
         cache_ttl
+        cache_ok
         do_not_hilite
         snipper_config
         hiliter_config
@@ -33,7 +35,7 @@ __PACKAGE__->mk_accessors(
         )
 );
 
-our $VERSION = '0.15';
+our $VERSION = '0.16';
 
 use Rose::Object::MakeMethods::Generic (
     'scalar --get_set_init' => 'searcher',
@@ -47,12 +49,15 @@ sub init {
         $self->facets(
             Search::OpenSearch::Facets->new( %{ $self->facets } ) );
     }
-    $self->{cache} ||= CHI->new(
-        driver           => 'File',
-        dir_create_mode  => 0770,
-        file_create_mode => 0660,
-        root_dir         => "/tmp/opensearch_cache",
-    );
+    $self->{cache_ok} = 1 unless defined $self->{cache_ok};
+    if ( $self->{cache_ok} ) {
+        $self->{cache} ||= CHI->new(
+            driver           => 'File',
+            dir_create_mode  => 0770,
+            file_create_mode => 0660,
+            root_dir         => "/tmp/opensearch_cache",
+        );
+    }
     $self->{cache_ttl}       ||= 60 * 60 * 1;                    # 1 hour
     $self->{do_not_hilite}   ||= {};
     $self->{snipper_config}  ||= { as_sentences => 1 };
@@ -87,10 +92,20 @@ sub search {
     my $include_facets = $args{'f'};
     $include_facets = 1 unless defined $include_facets;
 
-    my $format
-        = uc(  $args{'t'}
-            || $args{'format'}
-            || $self->default_response_format );
+    if ( $self->debug and $self->logger ) {
+        $self->logger->log( dump( \%args ) );
+    }
+
+    my $format 
+        = $args{'t'}
+        || $args{'format'}
+        || $self->default_response_format;
+
+    # backwards compat
+    if ( $format eq 'xml' or $format eq 'json' ) {
+        $format = uc($format);
+    }
+
     my $response_class = $args{response_class}
         || 'Search::OpenSearch::Response::' . $format;
 
@@ -133,6 +148,7 @@ sub search {
         search_time  => $search_time,
         link         => ( $args{'u'} || $args{'link'} || $self->link ),
         engine       => blessed($self),
+        sort_info    => $sort_by,
     );
     if ( $self->debug and $self->logger ) {
         $self->logger->log(
@@ -170,11 +186,17 @@ sub set_limit {
     return \@range;
 }
 
+sub get_facets_cache_key {
+    my $self = shift;
+    my ( $query, $args ) = @_;
+    return ref($self) . $query;
+}
+
 sub get_facets {
     my $self      = shift;
     my $query     = shift;
     my $results   = shift;
-    my $cache_key = ref($self) . $query;
+    my $cache_key = $self->get_facets_cache_key( $query, @_ );
     my $cache     = $self->cache or return;
 
     my $facets;
@@ -303,6 +325,7 @@ Search::OpenSearch::Engine - abstract base class
     searcher_config => {
         anotherkey => anothervalue,
     },
+    cache_ok        => 1,
     cache           => CHI->new(
         driver           => 'File',
         dir_create_mode  => 0770,
@@ -390,6 +413,12 @@ Default is to croak().
 
 The base URI for Responses. Passed to Response->link.
 
+=head2 get_facets_cache_key( I<query>, I<search_args> )
+
+Returns a string used to key the facets cache. Override this
+method in a subclass to implement more nuanced string
+construction.
+
 =head2 get_facets( I<query>, I<results> )
 
 Checks the cache for facets related to I<query> and, if found,
@@ -438,6 +467,12 @@ Array ref of fields defined in the new() constructor.
 =back
 
 Returns a hash ref, where each key is a field name.
+
+=head2 cache_ok
+
+If set to C<0>, no internal cache object will be created for you.
+You can still set one in the B<cache> param, but the
+automatic creation is turned off.
 
 =head2 cache
 

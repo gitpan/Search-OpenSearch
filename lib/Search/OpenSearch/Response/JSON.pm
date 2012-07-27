@@ -5,18 +5,20 @@ use Carp;
 use base qw( Search::OpenSearch::Response );
 use JSON;
 
-our $VERSION = '0.15';
+our $VERSION = '0.16';
 
 sub stringify {
     my $self = shift;
 
     my $resp = $self->as_hash;
-
+    
     # in devel mode use pretty()
     return $self->debug
         ? JSON->new->utf8->pretty(1)->encode($resp)
         : encode_json($resp);
 }
+
+sub content_type { return 'application/json' }
 
 1;
 
@@ -72,6 +74,10 @@ Only new or overridden methods are documented here.
 Returns the Response in JSON format.
 
 Response objects are overloaded to call stringify().
+
+=head2 content_type
+
+Returns appropriate MIME type for the format returned by stringify().
 
 =head1 AUTHOR
 

@@ -1,12 +1,53 @@
-package Search::OpenSearch::Facets;
+package Search::OpenSearch::Response::ExtJS;
 use strict;
 use warnings;
 use Carp;
-use base qw( Rose::ObjectX::CAF );
-
-__PACKAGE__->mk_accessors(qw( names sample_size ));
+use base qw( Search::OpenSearch::Response::JSON );
+use JSON;
+use Sort::SQL;
 
 our $VERSION = '0.16';
+
+__PACKAGE__->add_attribute('metaData');
+__PACKAGE__->add_attribute('success');
+
+sub stringify {
+    my $self = shift;
+
+    my $resp = $self->as_hash;
+
+    if ( !defined $resp->{metaData} ) {
+        my $sort_info = delete $resp->{sort_info};
+        if ($sort_info) {
+            my $sorted = Sort::SQL->parse($sort_info);
+            $sort_info = {
+                field     => $sorted->[0]->[0],
+                direction => $sorted->[0]->[1],
+            };
+        }
+        $resp->{metaData} = {
+            idProperty      => 'uri',
+            root            => 'results',
+            totalProperty   => 'total',
+            successProperty => 'success',
+            start           => delete $resp->{offset},
+            limit           => delete $resp->{page_size},
+            sortInfo        => $sort_info,
+        };
+        my @fields = (
+            @{ delete( $resp->{fields} ) || [] },
+            @{ $self->default_fields }
+        );
+        $resp->{metaData}->{fields} = \@fields;
+    }
+
+    $resp->{success} = 1 unless defined $resp->{success};
+
+    # in devel mode use pretty()
+    return $self->debug
+        ? JSON->new->utf8->pretty(1)->encode($resp)
+        : encode_json($resp);
+}
 
 1;
 
@@ -14,13 +55,13 @@ __END__
 
 =head1 NAME
 
-Search::OpenSearch::Facets - represents Facet metadata
+Search::OpenSearch::Response::ExtJS - provide search results in JSON format for ExtJS
 
 =head1 SYNOPSIS
 
  use Search::OpenSearch;
  my $engine = Search::OpenSearch->engine(
-    type    => 'KSx',
+    type    => 'Lucy',
     index   => [qw( path/to/index1 path/to/index2 )],
     facets  => {
         names       => [qw( color size flavor )],
@@ -37,23 +78,37 @@ Search::OpenSearch::Facets - represents Facet metadata
     c           => 0,                   # return count stats only (no results)
     L           => 'field|low|high',    # limit results to inclusive range
     f           => 1,                   # include facets
-    format      => 'XML',               # or JSON
+    r           => 1,                   # include results
+    format      => 'ExtJS',             # or JSON, XML
  );
  print $response;
 
 =head1 DESCRIPTION
 
-Search::OpenSearch is a framework for various backend engines
-to return results comforming to the OpenSearch API (http://opensearch.org/).
+Search::OpenSearch::Response::ExtJS serializes to JSON suitable
+for the ExtJS Javascript library.
 
 =head1 METHODS
 
-This class is a subclass of Rose::ObjectX::CAF. Only new or overridden
-methods are documented here.
+This class is a subclass of Search::OpenSearch::Response. 
+Only new or overridden methods are documented here.
 
-=head2 names
+=head2 stringify
 
-=head2 sample_size
+Returns the Response in JSON format.
+
+Response objects are overloaded to call stringify().
+
+=head2 content_type
+
+Returns appropriate MIME type for the format returned by stringify().
+
+=head2 metaData
+
+=head2 success
+
+The C<metaData> and C<success> attributes are present to 
+support the ExtJS specification.
 
 =head1 AUTHOR
 
@@ -69,7 +124,7 @@ automatically be notified of progress on your bug as I make changes.
 
 You can find documentation for this module with the perldoc command.
 
-    perldoc Search::OpenSearch
+    perldoc Search::OpenSearch::Response
 
 
 You can also look for information at:

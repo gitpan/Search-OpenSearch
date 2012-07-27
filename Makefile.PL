@@ -28,6 +28,8 @@ WriteMakefile(
         'Data::Pageset'      => 0,
         'Search::Tools'      => 0,
         'CHI'                => 0,
+        'Data::UUID'         => 0,
+        'Sort::SQL'          => 0,
     },
     dist  => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
     clean => { FILES    => 'Search-OpenSearch-*' },

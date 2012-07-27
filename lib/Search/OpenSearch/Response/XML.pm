@@ -10,7 +10,7 @@ use URI::Encode qw( uri_encode );
 use POSIX qw( strftime );
 use Data::UUID;
 
-our $VERSION = '0.15';
+our $VERSION = '0.16';
 
 my $XMLer = Search::Tools::XML->new;
 
@@ -20,6 +20,7 @@ my $header = <<EOF;
        xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/">
 EOF
 
+# TODO add sort_info
 sub stringify {
     my $self       = shift;
     my $pager      = $self->build_pager();
@@ -27,13 +28,15 @@ sub stringify {
     my @entries    = $self->_build_entries;
 
     my $now = strftime '%Y-%m-%dT%H:%M:%SZ', gmtime;
+    my $query = $self->query;
+    $query = "" unless defined $query;
 
-    my $query_encoded = uri_encode( $self->query );
+    my $query_encoded = uri_encode($query) || "";
     my $this_uri
-        = $self->link
+        = ( $self->link || '' )
         . '?format=XML&q='
         . $query_encoded . '&p='
-        . $self->page_size;
+        . ( $self->page_size || '' );
 
     my $self_link = $XMLer->singleton(
         'link',
@@ -66,7 +69,7 @@ sub stringify {
         'opensearch:Query',
         {   role         => 'request',
             totalResults => $self->total,
-            searchTerms  => $self->query,
+            searchTerms  => $query,
             startIndex   => $self->offset,
         }
     );
@@ -159,6 +162,8 @@ sub _build_entries {
     return @entries;
 }
 
+sub content_type { return 'application/xml' }
+
 1;
 
 __END__
@@ -209,6 +214,10 @@ Only new or overridden methods are documented here.
 Returns the Response in XML format.
 
 Response objects are overloaded to call stringify().
+
+=head2 content_type
+
+Returns appropriate MIME type for the format returned by stringify().
 
 =head1 AUTHOR
 
