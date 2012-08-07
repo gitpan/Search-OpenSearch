@@ -26,15 +26,23 @@ my @attributes = qw(
     search_time
     build_time
     sort_info
+    version
 );
-__PACKAGE__->mk_accessors( @attributes, qw( debug pps ) );
+__PACKAGE__->mk_accessors( @attributes, qw( debug pps error ) );
 
-our $VERSION = '0.16';
+our $VERSION = '0.17';
 
 our %ATTRIBUTES = ();
 
 sub default_fields {
     return [qw( uri title summary mtime score )];
+}
+
+sub get_version {
+    my $self = shift;
+    my $class = ref $self ? ref($self) : $self;
+    no strict 'refs';
+    return ${"${class}::VERSION"};
 }
 
 sub init {
@@ -50,6 +58,7 @@ sub init {
     $self->{pps}       ||= 10;
     $self->{offset}    ||= 0;
     $self->{page_size} ||= 10;
+    $self->{version}   ||= $self->get_version();
     return $self;
 }
 
@@ -131,6 +140,10 @@ common methods for all Response subclasses.
 This class is a subclass of Rose::ObjectX::CAF. Only new or overridden
 methods are documented here.
 
+=head2 get_version
+
+Returns the package var $VERSION string by default.
+
 =head2 init
 
 Sets some defaults for a new Response.
@@ -184,6 +197,8 @@ Pages-per-section. Used by Data::Pageset. Default is "10".
 
 =item sort_info
 
+=item version
+
 =back
 
 =head2 build_pager
@@ -210,6 +225,12 @@ to extend the basic structure without needing to subclass.
 
 Returns array ref of default result field names. These are implemented
 by the default Engine class.
+
+=head2 error
+
+Get/set error value for the Response. This value is not included
+in the stringify() output, but can be used to set or check for
+errors in processing.
 
 =head1 AUTHOR
 

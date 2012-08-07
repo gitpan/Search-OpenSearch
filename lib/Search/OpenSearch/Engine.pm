@@ -32,15 +32,23 @@ __PACKAGE__->mk_accessors(
         searcher_config
         logger
         debug
+        error
         )
 );
 
-our $VERSION = '0.16';
+our $VERSION = '0.17';
 
 use Rose::Object::MakeMethods::Generic (
     'scalar --get_set_init' => 'searcher',
     'scalar --get_set_init' => 'default_response_format',
 );
+
+sub version {
+    my $self = shift;
+    my $class = ref $self ? ref($self) : $self;
+    no strict 'refs';
+    return ${"${class}::VERSION"};
+}
 
 sub init {
     my $self = shift;
@@ -147,7 +155,7 @@ sub search {
         query        => $query,
         search_time  => $search_time,
         link         => ( $args{'u'} || $args{'link'} || $self->link ),
-        engine       => blessed($self),
+        engine       => blessed($self) . ' ' . $self->version(),
         sort_info    => $sort_by,
     );
     if ( $self->debug and $self->logger ) {
@@ -365,6 +373,10 @@ some sane method behavior based on the SWISH::Prog::Searcher API.
 This class is a subclass of Rose::ObjectX::CAF. Only new or overridden
 methods are documented here.
 
+=head2 version
+
+Returns the $VERSION for the Engine.
+
 =head2 init
 
 Sets up the new object.
@@ -541,6 +553,10 @@ Get/set the debug flag for messaging on stderr.
 =head2 init_default_response_format
 
 Returns default response format. Defaults to 'XML'.
+
+=head2 error
+
+Get/set the error value for the Engine. 
 
 =head1 AUTHOR
 
