@@ -10,7 +10,7 @@ use URI::Encode qw( uri_encode );
 use POSIX qw( strftime );
 use Data::UUID;
 
-our $VERSION = '0.19';
+our $VERSION = '0.20';
 
 my $XMLer = Search::Tools::XML->new;
 
@@ -189,7 +189,8 @@ sub _build_entries {
             $result,
             {   tag   => 'fields',
                 attrs => { xmlns => 'http://dezi.org/sos/schema' },
-            }
+            },
+            0, 1,
         );
         $micro .= $XMLer->end_tag('content');
 

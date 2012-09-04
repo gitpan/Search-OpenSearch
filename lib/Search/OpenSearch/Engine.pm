@@ -37,7 +37,7 @@ __PACKAGE__->mk_accessors(
         )
 );
 
-our $VERSION = '0.19';
+our $VERSION = '0.20';
 
 use Rose::Object::MakeMethods::Generic (
     'scalar --get_set_init' => 'searcher',
@@ -80,6 +80,10 @@ sub init {
 sub init_searcher { croak "$_[0] does not implement init_searcher()" }
 sub type          { croak "$_[0] does not implement type()" }
 sub has_rest_api  {0}
+
+sub get_allowed_http_methods {
+    croak "$_[0] does not implement get_allowed_http_methods";
+}
 sub init_default_response_format {'XML'}
 
 sub search {
@@ -271,8 +275,10 @@ sub process_result {
     my $fields       = $args{fields};
     my $apply_hilite = $args{apply_hilite};
 
-    my $title   = $XMLer->escape( $result->title   || '' );
-    my $summary = $XMLer->escape( $result->summary || '' );
+    my $title = $XMLer->escape( $result->title || '' );
+
+    # escape the summary *after* we snip it
+    my $summary = $result->summary || '';
 
     # \003 is the record-delimiter in Swish3
     # the default behaviour is just to ignore it
@@ -288,20 +294,24 @@ sub process_result {
         title   => ( $apply_hilite ? $hiliter->light($title) : $title ),
         summary => (
               $apply_hilite
-            ? $hiliter->light( $snipper->snip($summary) )
-            : $summary
+            ? $hiliter->light( $XMLer->escape( $snipper->snip($summary) ) )
+            : $XMLer->escape($summary)
         ),
     );
     for my $field (@$fields) {
-        my $str = $XMLer->escape( $result->get_property($field) || '' );
+        my $str = $result->get_property($field) || '';
 
         if ( $self->array_field_values ) {
             if ( !$apply_hilite or $self->no_hiliting($field) ) {
-                $res{$field} = [ split( m/\003/, $str ) ];
+                $res{$field}
+                    = [ map { $XMLer->escape($_) } split( m/\003/, $str ) ];
             }
             else {
                 $res{$field} = [
-                    map { $hiliter->light( $snipper->snip($_) ) }
+                    map {
+                        $hiliter->light(
+                            $XMLer->escape( $snipper->snip($_) ) )
+                        }
                         split( m/\003/, $str )
                 ];
             }
@@ -309,10 +319,11 @@ sub process_result {
         else {
             $str =~ s/\003/ /g;
             if ( !$apply_hilite or $self->no_hiliting($field) ) {
-                $res{$field} = $str;
+                $res{$field} = $XMLer->escape($str);
             }
             else {
-                $res{$field} = $hiliter->light( $snipper->snip($str) );
+                $res{$field} = $hiliter->light(
+                    $XMLer->escape( $snipper->snip($str) ) );
             }
         }
     }
@@ -560,6 +571,11 @@ support for DELETE, PUT, POST and GET HTTP methods on particular
 documents in the index.
 
 Default is false.
+
+=head2 get_allowed_http_methods
+
+Override this method in a subclass in order to indicate the
+supported HTTP methods. Assumes has_rest_api() is true.
 
 =head2 debug([boolean])
 
