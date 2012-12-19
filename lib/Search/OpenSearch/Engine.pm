@@ -36,10 +36,11 @@ __PACKAGE__->mk_accessors(
         debug
         error
         array_field_values
+        response_version
         )
 );
 
-our $VERSION = '0.23';
+our $VERSION = '0.24';
 
 use Rose::Object::MakeMethods::Generic (
     'scalar --get_set_init' => 'searcher',
@@ -166,8 +167,9 @@ sub search {
         query        => $query,
         search_time  => $search_time,
         link         => ( $args{'u'} || $args{'link'} || $self->link ),
-        engine       => blessed($self) . ' ' . $self->version(),
-        sort_info    => $sort_by,
+        version => ( $self->response_version || $self->version ),
+        engine    => blessed($self) . ' ' . $self->version(),
+        sort_info => $sort_by,
     );
     if ( $self->suggester ) {
         $response->suggestions( $self->suggester->suggest("$query") );
@@ -388,7 +390,7 @@ Search::OpenSearch::Engine - abstract base class
  );
  my $response = $engine->search(
     q   => 'quick brown fox',   # query
-    s   => 'rank desc',         # sort order
+    s   => 'score desc',        # sort order
     o   => 0,                   # offset
     p   => 25,                  # page size
     h   => 1,                   # highlight query terms in results
@@ -624,6 +626,10 @@ Get/set the error value for the Engine.
 
 Return all non-default field values as array refs rather than strings.
 This supports the multi-value \003 separator used by L<SWISH::3>.
+
+=head2 response_version
+
+The version string to include in Response. Defaults to version().
 
 =head1 AUTHOR
 

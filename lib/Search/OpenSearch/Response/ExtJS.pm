@@ -6,7 +6,7 @@ use base qw( Search::OpenSearch::Response::JSON );
 use JSON;
 use Sort::SQL;
 
-our $VERSION = '0.23';
+our $VERSION = '0.24';
 
 __PACKAGE__->add_attribute('metaData');
 __PACKAGE__->add_attribute('success');
@@ -71,7 +71,7 @@ Search::OpenSearch::Response::ExtJS - provide search results in JSON format for 
  );
  my $response = $engine->search(
     q  => 'quick brown fox',   # query
-    s  => 'rank desc',         # sort order
+    s  => 'score desc',        # sort order
     o  => 0,                   # offset
     p  => 25,                  # page size
     h  => 1,                   # highlight query terms in results

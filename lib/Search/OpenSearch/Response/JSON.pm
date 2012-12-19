@@ -5,7 +5,7 @@ use Carp;
 use base qw( Search::OpenSearch::Response );
 use JSON;
 
-our $VERSION = '0.23';
+our $VERSION = '0.24';
 
 sub stringify {
     my $self = shift;
@@ -42,7 +42,7 @@ Search::OpenSearch::Response::JSON - provide search results in JSON format
  );
  my $response = $engine->search(
     q           => 'quick brown fox',   # query
-    s           => 'rank desc',         # sort order
+    s           => 'score desc',        # sort order
     o           => 0,                   # offset
     p           => 25,                  # page size
     h           => 1,                   # highlight query terms in results

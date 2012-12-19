@@ -5,7 +5,7 @@ use Carp;
 use base qw( Search::OpenSearch::Response::JSON );
 use JSON;
 
-our $VERSION = '0.23';
+our $VERSION = '0.24';
 
 my %tiny_fields = map { $_ => 1 } qw(
     total
@@ -54,7 +54,7 @@ Search::OpenSearch::Response::Tiny - provide minimal search results in JSON form
  );
  my $response = $engine->search(
     q   => 'quick brown fox',   # query
-    s   => 'rank desc',         # sort order
+    s   => 'score desc',        # sort order
     o   => 0,                   # offset
     p   => 25,                  # page size
     h   => 1,                   # highlight query terms in results
