@@ -24,7 +24,7 @@ requires:
   JSON: 0
   Rose::ObjectX::CAF: 0
   Scalar::Util: 0
-  Search::Tools: 0.87
+  Search::Tools: 0.9
   Sort::SQL: 0
   Test::More: 0
   URI::Encode: 0
@@ -34,4 +34,4 @@ resources:
   homepage: https://github.com/karpet/search-opensearch-perl
   license: http://opensource.org/licenses/gpl-license.php
   repository: http://github.com/karpet/search-opensearch-perl
-version: 0.24
+version: 0.26
