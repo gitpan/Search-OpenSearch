@@ -8,7 +8,7 @@ configure_requires:
   ExtUtils::MakeMaker: 6.59
 distribution_type: module
 dynamic_config: 1
-generated_by: 'Module::Install version 1.06'
+generated_by: 'Module::Install version 1.08'
 license: http://dev.perl.org/licenses/
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
@@ -23,16 +23,18 @@ requires:
   Data::Pageset: 0
   Data::UUID: 0
   JSON: 0
-  Rose::ObjectX::CAF: 0
+  Moose: 0
   Scalar::Util: 0
-  Search::Tools: 0.9
+  Search::Tools: '1.000'
   Sort::SQL: 0
   Test::More: 0
+  Type::Tiny: 0
   URI::Encode: 0
+  namespace::sweep: 0
   perl: 5.8.3
 resources:
   bugtracker: http://rt.cpan.org/NoAuth/Bugs.html?Dist=Search-OpenSearch
   homepage: https://github.com/karpet/search-opensearch-perl
   license: http://opensource.org/licenses/gpl-license.php
   repository: http://github.com/karpet/search-opensearch-perl
-version: 0.31
+version: 0.399_01

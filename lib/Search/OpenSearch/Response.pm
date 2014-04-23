@@ -1,7 +1,7 @@
 package Search::OpenSearch::Response;
-use strict;
-use warnings;
-use base qw( Rose::ObjectX::CAF );
+use Moose;
+use Types::Standard
+    qw( Int Str Num ArrayRef HashRef InstanceOf Maybe Object Bool );
 use Carp;
 use Data::Pageset;
 use overload
@@ -9,31 +9,41 @@ use overload
     'bool'   => sub {1},
     fallback => 1;
 
-my @attributes = qw(
-    engine
-    results
-    total
-    offset
-    page_size
-    fields
-    facets
-    query
-    parsed_query
-    json_query
-    title
-    link
-    author
-    search_time
-    build_time
-    sort_info
-    version
-    suggestions
-);
-__PACKAGE__->mk_accessors( @attributes, qw( debug pps error ) );
+use namespace::sweep;
 
-our $VERSION = '0.31';
+has 'engine'    => ( is => 'rw', isa => Str );
+has 'results'   => ( is => 'rw', isa => ArrayRef );
+has 'total'     => ( is => 'rw', isa => Int );
+has 'offset'    => ( is => 'rw', isa => Int, default => sub {0} );
+has 'page_size' => ( is => 'rw', isa => Int, default => sub {10} );
+has 'fields'    => ( is => 'rw', isa => ArrayRef );
+has 'facets'    => ( is => 'rw', isa => ArrayRef );
+has 'query' =>
+    ( is => 'rw', isa => Str | InstanceOf ['Search::Query::Dialect'] );
+has 'parsed_query' =>
+    ( is => 'rw', isa => Str | InstanceOf ['Search::Query::Dialect'] );
+has 'json_query' => ( is => 'rw', isa => Str );
+has 'title' =>
+    ( is => 'rw', isa => Str, default => sub {'OpenSearch Results'} );
+has 'link' => ( is => 'rw', isa => Str, default => sub {''} );
+has 'author' => ( is => 'rw', isa => Str, builder => 'init_author' );
+has 'search_time' => ( is => 'rw', isa => Num );
+has 'build_time'  => ( is => 'rw', isa => Num );
+has 'sort_info'   => ( is => 'rw', isa => Str );
+has 'version'     => ( is => 'rw', isa => Str, builder => 'get_version' );
+has 'suggestions' => ( is => 'rw', isa => ArrayRef );
+has 'debug' =>
+    ( is => 'rw', isa => Bool, default => sub { $ENV{SOS_DEBUG} || 0 } );
+has 'pps' => ( is => 'rw', isa => Int, default => sub {10} );
+has 'error' => ( is => 'rw', isa => Maybe [Str] );
+has 'attr_blacklist' =>
+    ( is => 'rw', isa => HashRef, builder => 'init_attr_blacklist' );
 
-our %ATTRIBUTES = ();
+our $VERSION = '0.399_01';
+
+sub init_attr_blacklist {
+    return { error => 1, debug => 1, attr_blacklist => 1, pps => 1, };
+}
 
 sub default_fields {
     return [qw( uri title summary mtime score )];
@@ -46,28 +56,21 @@ sub get_version {
     return ${"${class}::VERSION"};
 }
 
-sub init {
+sub init_author {
     my $self = shift;
-
-    my $class = ref $self;
-    map { $ATTRIBUTES{$class}->{$_} = $_ } @attributes;
-
-    $self->SUPER::init(@_);
-    $self->{title}     ||= 'OpenSearch Results';
-    $self->{author}    ||= ref($self);
-    $self->{link}      ||= '';
-    $self->{pps}       ||= 10;
-    $self->{offset}    ||= 0;
-    $self->{page_size} ||= 10;
-    $self->{version}   ||= $self->get_version();
-    return $self;
+    return ref($self);
 }
 
 sub stringify { croak "$_[0] does not implement stringify()" }
 
 sub as_hash {
     my $self = shift;
-    my %hash = map { $_ => $self->$_ } keys %{ $ATTRIBUTES{ ref $self } };
+    my %hash;
+    my %class_attrs = map { $_->name => $_ } $self->meta->get_all_attributes;
+    for my $attr ( keys %class_attrs ) {
+        next if exists $self->attr_blacklist->{$attr};
+        $hash{$attr} = $self->$attr;
+    }
     return \%hash;
 }
 
@@ -91,8 +94,7 @@ sub add_attribute {
     my $self = shift;
     my $class = ref $self ? ref $self : $self;
     for my $attr (@_) {
-        $self->mk_accessors($attr);
-        $ATTRIBUTES{$class}->{$attr} = $attr;
+        has $attr => ( is => 'rw', isa => Maybe [Str] );
     }
 }
 
@@ -138,16 +140,14 @@ common methods for all Response subclasses.
 
 =head1 METHODS
 
-This class is a subclass of Rose::ObjectX::CAF. Only new or overridden
+This class is a subclass of Moose. Only new or overridden
 methods are documented here.
 
 =head2 get_version
 
 Returns the package var $VERSION string by default.
 
-=head2 init
-
-Sets some defaults for a new Response.
+=head2 new( I<params> )
 
 The following standard get/set attribute methods are available:
 
@@ -234,6 +234,15 @@ by the default Engine class.
 Get/set error value for the Response. This value is not included
 in the stringify() output, but can be used to set or check for
 errors in processing.
+
+=head2 init_author
+
+Builder method for the B<author>.
+
+=head2 init_attr_blacklist
+
+Builder method for B<attr_blacklist>. This hashref of attribute names
+registers which attributes are excluded by stringify().
 
 =head1 AUTHOR
 
