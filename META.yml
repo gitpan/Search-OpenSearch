@@ -37,4 +37,4 @@ resources:
   homepage: https://github.com/karpet/search-opensearch-perl
   license: http://opensource.org/licenses/gpl-license.php
   repository: http://github.com/karpet/search-opensearch-perl
-version: 0.399_03
+version: 0.399_04
