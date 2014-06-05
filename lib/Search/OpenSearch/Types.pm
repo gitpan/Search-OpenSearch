@@ -1,13 +1,10 @@
 package Search::OpenSearch::Types;
-use Type::Tiny;
+use Type::Library -base, -declare => qw( SOSFacets );
 use Types::Standard qw( HashRef Object );
-use Type::Utils qw( declare as where inline_as coerce from );
+use Type::Utils -all;
 
-# singleton types
-my $FACETS = declare as Object;
-coerce $FACETS, from HashRef, q{ Search::OpenSearch::Facets->new($_) };
-
-sub facets { return $FACETS }
+class_type SOSFacets, { class => 'Search::OpenSearch::Facets' };
+coerce SOSFacets, from HashRef, via { Search::OpenSearch::Facets->new($_) };
 
 1;
 
@@ -18,21 +15,21 @@ Search::OpenSearch::Types - attribute types for Search::OpenSearch
 =head1 SYNOPSIS
 
  package Foo;
- use Search::OpenSearch::Types;
+ use Moose;
+ use Search::OpenSearch::Types qw( SOSFacets );
+ use Search::OpenSearch::Facets;
 
  has 'facets' => (
     is     => 'rw',
-    isa    => Maybe [ InstanceOf ['Search::OpenSearch::Facets'] ],
-    coerce => Search::OpenSearch::Types->facets->coercion,
+    isa    => SOSFacets,
+    coerce => 1,
  );
 
  1;
 
 =head1 METHODS
 
-=head2 facets
-
-Returns Type::Tiny object for B<facets> type.
+None.
 
 =head1 AUTHOR
 

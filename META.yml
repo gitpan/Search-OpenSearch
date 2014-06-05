@@ -24,6 +24,7 @@ requires:
   Data::UUID: 0
   JSON: 0
   Moose: 0
+  MooseX::StrictConstructor: 0
   Scalar::Util: 0
   Search::Tools: '1.000'
   Sort::SQL: 0
@@ -37,4 +38,4 @@ resources:
   homepage: https://github.com/karpet/search-opensearch-perl
   license: http://opensource.org/licenses/gpl-license.php
   repository: http://github.com/karpet/search-opensearch-perl
-version: 0.399_04
+version: 0.399_05

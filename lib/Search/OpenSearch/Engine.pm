@@ -4,7 +4,7 @@ use Types::Standard
     qw( Str Num Int ArrayRef HashRef InstanceOf Maybe Object Bool );
 use Carp;
 use Scalar::Util qw( blessed );
-use Search::OpenSearch::Types;
+use Search::OpenSearch::Types qw( SOSFacets );
 use Search::OpenSearch::Facets;
 use Search::OpenSearch::Response::XML;
 use Search::OpenSearch::Response::JSON;
@@ -20,12 +20,11 @@ use JSON;
 
 use namespace::sweep;
 
-my $facets_type = Search::OpenSearch::Types->facets;
 has 'index' => ( is => 'rw', isa => ArrayRef, );
 has 'facets' => (
     is     => 'rw',
-    isa    => Maybe [$facets_type],
-    coerce => $facets_type->coercion,
+    isa    => Maybe [SOSFacets],
+    coerce => 1,
 );
 has 'fields' => ( is => 'rw', isa => Maybe [ArrayRef], );
 has 'link' => ( is => 'rw', isa => Str, builder => 'init_link' );
@@ -106,7 +105,7 @@ has 'default_response_format' => (
 has 'cache_key_seed' =>
     ( is => 'rw', isa => Maybe [Str], builder => 'init_cache_key_seed' );
 
-our $VERSION = '0.399_04';
+our $VERSION = '0.399_05';
 
 sub BUILD {
     my $self = shift;
@@ -497,14 +496,23 @@ methods are documented here.
 
 Returns the $VERSION for the Engine.
 
-=head2 init
+=head2 BUILD
 
 Sets up the new object.
+
+=head2 init_indexer
+
+Subclasses must implement this method if they wish to support
+REST methods (PUT POST DELETE).
+
+=head2 init_link
+
+Initialize the link() attribute. This is a builder method.
 
 =head2 init_searcher
 
 Subclasses must implement this method. If the Searcher object
-acts like a SWISH::Prog::Searcher, then search() will Just Work.
+acts like a L<SWISH::Prog::Searcher> or L<Dezi::Searcher>, then search() will Just Work.
 Otherwise, your Engine subclass should likely override search() as well.
 
 =head2 init_suggester
