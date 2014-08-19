@@ -45,7 +45,7 @@ has 'attr_blacklist' =>
 has 'mtime_field' =>
     ( is => 'rw', isa => Str, builder => 'init_mtime_field' );
 
-our $VERSION = '0.406';
+our $VERSION = '0.407';
 
 sub init_attr_blacklist {
     return {
@@ -99,6 +99,7 @@ sub get_mtime {
     my $field  = $self->mtime_field;
     my $recent = 0;
     for my $r ( @{ $self->results || [] } ) {
+        next unless ref $r eq 'HASH';
         my $mtime = $r->{$field};
         if ( $mtime > $recent ) {
             $recent = $mtime;
